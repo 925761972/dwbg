@@ -28,7 +28,8 @@ export function isBitableAvailable(): boolean {
 export function subscribeSelectionChange(handler: () => void): () => void {
   const b = getBitable()
   if (b?.base) {
-    const off = b.base.onSelectionChange(handler)
+    // 兼容不同签名：忽略事件参数，仅触发刷新
+    const off = b.base.onSelectionChange(() => handler())
     return () => off?.()
   }
   // local dev: simulate no-op
@@ -39,7 +40,12 @@ export function subscribeSelectionChange(handler: () => void): () => void {
 function extractMarkdownFromCell(val: any): string {
   if (val == null) return ''
   if (typeof val === 'string') return val
-  if (Array.isArray(val)) return val.map((v) => (typeof v === 'string' ? v : JSON.stringify(v))).join('\n')
+  if (Array.isArray(val)) {
+    // 处理富文本段数组：拼接 text 字段
+    const hasText = val.length > 0 && typeof val[0] === 'object' && 'text' in val[0]
+    if (hasText) return val.map((seg: any) => String(seg.text ?? '')).join('')
+    return val.map((v) => (typeof v === 'string' ? v : JSON.stringify(v))).join('\n')
+  }
   if (typeof val === 'object') {
     // Common field value wrapper in Bitable
     if ('text' in val && typeof val.text === 'string') return val.text
