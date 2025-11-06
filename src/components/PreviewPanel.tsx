@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
-import { sanitizeHtml } from '../utils/markdown.ts'
+import { sanitizeHtml, parseMarkdownLight } from '../utils/markdown.ts'
 import ParserWorker from '../workers/parser.worker?worker'
 import { buildHierarchy, type HierNode } from '../utils/hierarchy.ts'
 import { copyHtmlToClipboard } from '../utils/copy.ts'
@@ -76,16 +76,14 @@ export function PreviewPanel(props: Props) {
       workerRef.current.postMessage({ markdown: mdPrepared })
       return
     }
-    // light path: parse in main thread using marked
-    import('../utils/markdown.ts').then(({ parseMarkdownLight }) => {
-      const { html, tokens } = parseMarkdownLight(mdPrepared)
-      const sanitized = sanitizeHtml(html)
-      setHtml(sanitized)
-      setHier(buildHierarchy(tokens))
-      const t1 = performance.now()
-      setParseTime(Math.round(t1 - t0))
-      setRenderTime(0)
-    })
+    // light path: parse in main thread using marked (static import to avoid CSP阻断)
+    const { html: parsedHtml, tokens } = parseMarkdownLight(mdPrepared)
+    const sanitized = sanitizeHtml(parsedHtml)
+    setHtml(sanitized)
+    setHier(buildHierarchy(tokens))
+    const t1 = performance.now()
+    setParseTime(Math.round(t1 - t0))
+    setRenderTime(0)
   }, [markdown, lastUpdatedAt])
 
   const metaText = useMemo(() => {
