@@ -69,8 +69,9 @@ export async function getSelectedCellMarkdown(): Promise<{ md: string; meta: Sel
   const base = b.base
   const table = await base.getTableById(tableId)
 
-  // 优先使用选中的字段，其次使用用户在 FieldSelector 选择的字段，最后使用候选字段名称匹配
-  let targetFieldId = selection.fieldId || localStorage.getItem('dwbg:fieldId') || ''
+  // 改为：优先使用用户在 FieldSelector 选择的字段；若未设置，按候选字段名称匹配；最后兜底为第一个字段。
+  // 不再优先使用当前选中的字段，避免用户点击了其他列导致预览为空。
+  let targetFieldId = localStorage.getItem('dwbg:fieldId') || ''
   if (!targetFieldId) {
     const metaList = await table.getFieldMetaList()
     const nameCandidates = ['content', '内容', '任务描述', '描述', '备注', 'Markdown', 'markdown']
@@ -139,15 +140,9 @@ export async function selectPrevRecord(): Promise<void> {
 }
 
 export async function setFieldId(fieldId: string): Promise<void> {
-  const b = getBitable()
-  if (!b?.base) {
-    localStorage.setItem('dwbg:fieldId', fieldId)
-    window.dispatchEvent(new Event('dwbg:refresh'))
-    return
-  }
-  const base = b.base
-  const selection = await base.getSelection()
-  await base.setSelection({ tableId: selection.tableId, recordId: selection.recordId, fieldId })
+  // 仅持久化选择的字段，不改变表格当前选区，避免打断用户操作
+  localStorage.setItem('dwbg:fieldId', fieldId)
+  window.dispatchEvent(new Event('dwbg:refresh'))
 }
 
 function sampleMarkdown(idx: number, fieldId: string): string {
