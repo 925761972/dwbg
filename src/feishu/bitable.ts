@@ -37,19 +37,38 @@ export function subscribeSelectionChange(handler: () => void): () => void {
   return () => clearInterval(interval)
 }
 
+function segToString(seg: any): string {
+  if (seg == null) return ''
+  if (typeof seg === 'string') return seg
+  if (typeof seg === 'object') {
+    // 常见富文本段的字段兜底
+    const direct = (seg.text ?? seg.value ?? seg.content ?? seg.plain_text ?? seg.plainText)
+    if (typeof direct === 'string') return direct
+    // 嵌套结构，如 { textRun: { text: '...' } }
+    for (const key of Object.keys(seg)) {
+      const v = (seg as any)[key]
+      if (typeof v === 'string') return v
+      if (v && typeof v === 'object' && typeof (v as any).text === 'string') return (v as any).text
+    }
+    try { return JSON.stringify(seg) } catch { return String(seg) }
+  }
+  return String(seg)
+}
+
 function extractMarkdownFromCell(val: any): string {
   if (val == null) return ''
   if (typeof val === 'string') return val
   if (Array.isArray(val)) {
-    // 处理富文本段数组：拼接 text 字段
-    const hasText = val.length > 0 && typeof val[0] === 'object' && 'text' in val[0]
-    if (hasText) return val.map((seg: any) => String(seg.text ?? '')).join('')
-    return val.map((v) => (typeof v === 'string' ? v : JSON.stringify(v))).join('\n')
+    // 处理富文本段数组：拼接常见字段
+    return val.map((seg: any) => segToString(seg)).join('')
   }
   if (typeof val === 'object') {
     // Common field value wrapper in Bitable
     if ('text' in val && typeof val.text === 'string') return val.text
     if ('value' in val && typeof val.value === 'string') return val.value
+    if ('elements' in val && Array.isArray((val as any).elements)) {
+      return ((val as any).elements as any[]).map(segToString).join('')
+    }
     try {
       return JSON.stringify(val)
     } catch {
@@ -71,7 +90,7 @@ export async function getSelectedCellMarkdown(): Promise<{ md: string; meta: Sel
   const selection = await b.base.getSelection()
   if (!selection) return { md: '', meta: {} }
 
-  const { tableId, recordId } = selection
+  const { tableId, recordId, fieldId: selectedFieldId } = selection as any
   const base = b.base
   const table = await base.getTableById(tableId)
 
@@ -82,7 +101,7 @@ export async function getSelectedCellMarkdown(): Promise<{ md: string; meta: Sel
     const metaList = await table.getFieldMetaList()
     const nameCandidates = ['content', '内容', '任务描述', '描述', '备注', 'Markdown', 'markdown']
     const found = metaList.find((f: any) => nameCandidates.includes((f?.name || '').trim()))
-    targetFieldId = found?.id || metaList?.[0]?.id || ''
+    targetFieldId = found?.id || selectedFieldId || metaList?.[0]?.id || ''
   }
 
   if (!targetFieldId) return { md: '', meta: { tableId, recordId } }

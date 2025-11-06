@@ -201,7 +201,11 @@ export function PreviewPanel(props: Props) {
       <div class="dwbg-panel__content">
         {mode === 'render' ? (
           activeTab === 'preview' ? (
-            <div class="dwbg-markdown" dangerouslySetInnerHTML={{ __html: html }} />
+            html && html.trim().length > 0 ? (
+              <div class="dwbg-markdown" dangerouslySetInnerHTML={{ __html: html }} />
+            ) : (
+              <div class="dwbg-empty">无内容可预览。请点击表格中的文本列，或在右上角 Field 选择正确的列。</div>
+            )
           ) : (
             <StructureView nodes={hier} expandAll={expandAll} expandKey={expandKey} />
           )
