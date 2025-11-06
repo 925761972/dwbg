@@ -1,4 +1,7 @@
 // Minimal Feishu Bitable integration with safe fallbacks for local dev
+// Prefer official SDK handshake; fallback to window.bitable when unavailable
+
+import { bitable as sdkBitable } from '@lark-opdev/block-bitable-api'
 
 type Selection = { tableId?: string; recordId?: string; fieldId?: string }
 
@@ -9,13 +12,23 @@ declare global {
   }
 }
 
+function getBitable(): any | undefined {
+  // SDK 提供的 bitable（推荐）
+  if (sdkBitable && sdkBitable.base) return sdkBitable
+  // 环境直接注入的 window.bitable（回退）
+  if (typeof window !== 'undefined' && (window as any).bitable?.base) return (window as any).bitable
+  return undefined
+}
+
 export function isBitableAvailable(): boolean {
-  return typeof window.bitable !== 'undefined' && !!window.bitable?.base
+  const b = getBitable()
+  return !!b?.base
 }
 
 export function subscribeSelectionChange(handler: () => void): () => void {
-  if (isBitableAvailable()) {
-    const off = window.bitable.base.onSelectionChange(handler)
+  const b = getBitable()
+  if (b?.base) {
+    const off = b.base.onSelectionChange(handler)
     return () => off?.()
   }
   // local dev: simulate no-op
@@ -41,18 +54,19 @@ function extractMarkdownFromCell(val: any): string {
 }
 
 export async function getSelectedCellMarkdown(): Promise<{ md: string; meta: Selection }> {
-  if (!isBitableAvailable()) {
+  const b = getBitable()
+  if (!b?.base) {
     // local dev: return placeholder text to preview UI
     const idx = parseInt(localStorage.getItem('dwbg:recordIndex') || '0')
     const fieldId = localStorage.getItem('dwbg:fieldId') || 'content'
     const md = sampleMarkdown(idx, fieldId)
     return { md, meta: { recordId: String(idx), fieldId } }
   }
-  const selection = await window.bitable.base.getSelection()
+  const selection = await b.base.getSelection()
   if (!selection) return { md: '', meta: {} }
 
   const { tableId, recordId } = selection
-  const base = window.bitable.base
+  const base = b.base
   const table = await base.getTableById(tableId)
 
   // 优先使用选中的字段，其次使用用户在 FieldSelector 选择的字段，最后使用候选字段名称匹配
@@ -71,36 +85,39 @@ export async function getSelectedCellMarkdown(): Promise<{ md: string; meta: Sel
 }
 
 export async function getFieldList(): Promise<Array<{ id: string; name: string }>> {
-  if (!isBitableAvailable()) {
+  const b = getBitable()
+  if (!b?.base) {
     return [
       { id: 'content', name: '内容' },
       { id: 'notes', name: '备注' },
     ]
   }
-  const base = window.bitable.base
+  const base = b.base
   const table = await base.getActiveTable()
   const fields = await table.getFieldMetaList()
   return fields.map((f: any) => ({ id: f.id, name: f.name }))
 }
 
 export async function getRecordIds(): Promise<string[]> {
-  if (!isBitableAvailable()) {
+  const b = getBitable()
+  if (!b?.base) {
     const count = parseInt(localStorage.getItem('dwbg:recordCount') || '5')
     return Array.from({ length: count }).map((_, i) => String(i))
   }
-  const base = window.bitable.base
+  const base = b.base
   const table = await base.getActiveTable()
   const records = await table.getRecordIdList()
   return records
 }
 
 export async function selectRecordByIndex(index: number): Promise<void> {
-  if (!isBitableAvailable()) {
+  const b = getBitable()
+  if (!b?.base) {
     localStorage.setItem('dwbg:recordIndex', String(index))
     window.dispatchEvent(new Event('dwbg:refresh'))
     return
   }
-  const base = window.bitable.base
+  const base = b.base
   const table = await base.getActiveTable()
   const ids = await table.getRecordIdList()
   const id = ids[Math.max(0, Math.min(ids.length - 1, index))]
@@ -122,12 +139,13 @@ export async function selectPrevRecord(): Promise<void> {
 }
 
 export async function setFieldId(fieldId: string): Promise<void> {
-  if (!isBitableAvailable()) {
+  const b = getBitable()
+  if (!b?.base) {
     localStorage.setItem('dwbg:fieldId', fieldId)
     window.dispatchEvent(new Event('dwbg:refresh'))
     return
   }
-  const base = window.bitable.base
+  const base = b.base
   const selection = await base.getSelection()
   await base.setSelection({ tableId: selection.tableId, recordId: selection.recordId, fieldId })
 }
