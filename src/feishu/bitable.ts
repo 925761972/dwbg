@@ -95,18 +95,33 @@ export async function getSelectedCellMarkdown(): Promise<{ md: string; meta: Sel
   const table = await base.getTableById(tableId)
 
   // 改为：优先使用用户在 FieldSelector 选择的字段；若未设置，按候选字段名称匹配；最后兜底为第一个字段。
-  // 不再优先使用当前选中的字段，避免用户点击了其他列导致预览为空。
+  // 优先级：1) 用户在 FieldSelector 指定的字段；2) 当前选中的字段；3) 候选名称；4) 第一个字段
   let targetFieldId = localStorage.getItem('dwbg:fieldId') || ''
+  if (!targetFieldId) targetFieldId = selectedFieldId || ''
   if (!targetFieldId) {
     const metaList = await table.getFieldMetaList()
     const nameCandidates = ['content', '内容', '任务描述', '描述', '备注', 'Markdown', 'markdown']
     const found = metaList.find((f: any) => nameCandidates.includes((f?.name || '').trim()))
-    targetFieldId = found?.id || selectedFieldId || metaList?.[0]?.id || ''
+    targetFieldId = found?.id || metaList?.[0]?.id || ''
   }
 
   if (!targetFieldId) return { md: '', meta: { tableId, recordId } }
   const val = await table.getCellValue(targetFieldId, recordId)
   const md = extractMarkdownFromCell(val)
+  // 记录调试信息，供侧栏诊断面板查看
+  try {
+    const metaList = await table.getFieldMetaList()
+    const fieldName = (metaList.find((f: any) => f.id === targetFieldId)?.name) || ''
+    const debug = {
+      selectedFieldId,
+      targetFieldId,
+      fieldName,
+      valueType: Array.isArray(val) ? 'array' : typeof val,
+      sample: Array.isArray(val) ? (val?.slice?.(0, 3) || []) : (typeof val === 'object' ? Object.keys(val).slice(0, 8) : String(val).slice(0, 120)),
+      mdLength: (md || '').length,
+    }
+    localStorage.setItem('dwbg:lastDebug', JSON.stringify(debug))
+  } catch {}
   return { md, meta: { tableId, recordId, fieldId: targetFieldId } }
 }
 

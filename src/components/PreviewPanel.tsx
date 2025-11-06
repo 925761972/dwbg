@@ -40,6 +40,8 @@ export function PreviewPanel(props: Props) {
   const [aiQuestion, setAiQuestion] = useState<string>('')
   const [expandAll, setExpandAll] = useState<boolean>(true)
   const [expandKey, setExpandKey] = useState<number>(0)
+  const [debugOpen, setDebugOpen] = useState<boolean>(false)
+  const [debugInfo, setDebugInfo] = useState<any>(null)
   // 移除导入/清除覆盖功能
   const [appearanceOpen, setAppearanceOpen] = useState<boolean>(false)
   const [proOpen, setProOpen] = useState<boolean>(false)
@@ -84,6 +86,11 @@ export function PreviewPanel(props: Props) {
     const t1 = performance.now()
     setParseTime(Math.round(t1 - t0))
     setRenderTime(0)
+    // 读取最新调试信息（由 feishu/bitable.ts 写入）
+    try {
+      const raw = localStorage.getItem('dwbg:lastDebug')
+      setDebugInfo(raw ? JSON.parse(raw) : null)
+    } catch { setDebugInfo(null) }
   }, [markdown, lastUpdatedAt])
 
   const metaText = useMemo(() => {
@@ -163,6 +170,7 @@ export function PreviewPanel(props: Props) {
         <RecordNavigator />
         <FieldSelector />
         <span class="dwbg-control-spacer" />
+        <button class="dwbg-btn dwbg-btn--sm" title="诊断信息" onClick={() => setDebugOpen((o) => !o)}>{debugOpen ? '关闭诊断' : '诊断'}</button>
         {activeTab === 'structure' && (
           <>
             <button
@@ -188,6 +196,22 @@ export function PreviewPanel(props: Props) {
           </>
         )}
       </div>
+      {debugOpen && (
+        <div class="dwbg-debug">
+          <div class="dwbg-debug-row">选择：{metaText}</div>
+          {debugInfo ? (
+            <div class="dwbg-debug-grid">
+              <div>目标字段：{debugInfo.fieldName || debugInfo.targetFieldId}</div>
+              <div>当前选中字段：{debugInfo.selectedFieldId || '-'}</div>
+              <div>值类型：{debugInfo.valueType}</div>
+              <div>提取后长度：{debugInfo.mdLength}</div>
+              <div>样本：<pre style={{whiteSpace:'pre-wrap'}}>{typeof debugInfo.sample === 'string' ? debugInfo.sample : JSON.stringify(debugInfo.sample)}</pre></div>
+            </div>
+          ) : (
+            <div class="dwbg-debug-row">暂无调试数据</div>
+          )}
+        </div>
+      )}
       <div class="dwbg-panel__tabs">
         <button class={`dwbg-tab ${mode === 'render' ? 'is-active' : ''}`} onClick={() => { setMode('render'); setActiveTab('preview') }}>预览模式</button>
         <button class={`dwbg-tab ${mode === 'ai' ? 'is-active' : ''}`} onClick={() => setMode('ai')}>AI问答模式</button>
