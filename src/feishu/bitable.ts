@@ -1,7 +1,5 @@
 // Minimal Feishu Bitable integration with safe fallbacks for local dev
-// Prefer official SDK handshake; fallback to window.bitable when unavailable
-
-import { bitable as sdkBitable } from '@lark-opdev/block-bitable-api'
+// 使用 window.bitable（侧栏/插件环境可用）；不再强制引入 block SDK，避免“Block client only running in Block host”异常。
 
 type Selection = { tableId?: string; recordId?: string; fieldId?: string }
 
@@ -13,9 +11,7 @@ declare global {
 }
 
 function getBitable(): any | undefined {
-  // SDK 提供的 bitable（推荐）
-  if (sdkBitable && sdkBitable.base) return sdkBitable
-  // 环境直接注入的 window.bitable（回退）
+  // 环境直接注入的 window.bitable（侧栏/插件环境）
   if (typeof window !== 'undefined' && (window as any).bitable?.base) return (window as any).bitable
   return undefined
 }
