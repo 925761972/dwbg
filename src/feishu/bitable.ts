@@ -41,12 +41,6 @@ function extractMarkdownFromCell(val: any): string {
 }
 
 export async function getSelectedCellMarkdown(): Promise<{ md: string; meta: Selection }> {
-  // override for local testing
-  const ls = (localStorage.getItem('dwbg:mdOverride') || '').trim()
-  const override = (typeof window.__mdOverride === 'string' && window.__mdOverride.trim()) || ls
-  if (override) {
-    return { md: override, meta: {} }
-  }
   if (!isBitableAvailable()) {
     // local dev: return placeholder text to preview UI
     const idx = parseInt(localStorage.getItem('dwbg:recordIndex') || '0')
@@ -56,11 +50,24 @@ export async function getSelectedCellMarkdown(): Promise<{ md: string; meta: Sel
   }
   const selection = await window.bitable.base.getSelection()
   if (!selection) return { md: '', meta: {} }
-  const { tableId, recordId, fieldId } = selection
-  const table = await window.bitable.base.getTableById(tableId)
-  const val = await table.getCellValue(fieldId, recordId)
+
+  const { tableId, recordId } = selection
+  const base = window.bitable.base
+  const table = await base.getTableById(tableId)
+
+  // 优先使用选中的字段，其次使用用户在 FieldSelector 选择的字段，最后使用候选字段名称匹配
+  let targetFieldId = selection.fieldId || localStorage.getItem('dwbg:fieldId') || ''
+  if (!targetFieldId) {
+    const metaList = await table.getFieldMetaList()
+    const nameCandidates = ['content', '内容', '任务描述', '描述', '备注', 'Markdown', 'markdown']
+    const found = metaList.find((f: any) => nameCandidates.includes((f?.name || '').trim()))
+    targetFieldId = found?.id || metaList?.[0]?.id || ''
+  }
+
+  if (!targetFieldId) return { md: '', meta: { tableId, recordId } }
+  const val = await table.getCellValue(targetFieldId, recordId)
   const md = extractMarkdownFromCell(val)
-  return { md, meta: { tableId, recordId, fieldId } }
+  return { md, meta: { tableId, recordId, fieldId: targetFieldId } }
 }
 
 export async function getFieldList(): Promise<Array<{ id: string; name: string }>> {

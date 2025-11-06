@@ -10,10 +10,7 @@ import { applyCustomTheme } from './utils/color'
 const DEFAULT_WIDTH = 300
 
 export function App() {
-  const [visible, setVisible] = useState<boolean>(() => {
-    const v = localStorage.getItem('dwbg:panelVisible')
-    return v === null ? true : v === '1'
-  })
+  const [visible] = useState<boolean>(true)
   const [panelWidth, setPanelWidth] = useState<number>(() => {
     const w = localStorage.getItem('dwbg:panelWidth')
     return w ? Math.max(240, Math.min(640, parseInt(w))) : DEFAULT_WIDTH
@@ -58,9 +55,7 @@ export function App() {
     return () => window.removeEventListener('dwbg:refresh', onRefresh as unknown as EventListener)
   }, [handleSelectionUpdate])
 
-  useEffect(() => {
-    localStorage.setItem('dwbg:panelVisible', visible ? '1' : '0')
-  }, [visible])
+  // 始终显示侧栏，不再持久化隐藏状态
 
   useEffect(() => {
     localStorage.setItem('dwbg:panelWidth', String(panelWidth))
@@ -85,18 +80,7 @@ export function App() {
     }
   }, [theme, customPrimary])
 
-  // Keyboard shortcut Cmd/Ctrl+Shift+M to toggle panel
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const isToggle = (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'm'
-      if (isToggle) {
-        e.preventDefault()
-        setVisible((v) => !v)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  // 移除快捷键隐藏功能
 
   // Resize handling
   useEffect(() => {
@@ -136,7 +120,7 @@ export function App() {
       />
       <PreviewPanel
         visible={visible}
-        onToggleVisible={() => setVisible((v) => !v)}
+        onToggleVisible={() => { /* 隐藏功能已移除 */ }}
         width={panelWidth}
         markdown={markdown}
         sourceMeta={sourceMeta}
@@ -146,9 +130,7 @@ export function App() {
         onChangeTheme={setTheme}
         onChangeCustomPrimary={setCustomPrimary}
       />
-      {!visible && (
-        <button class="dwbg-open-toggle" onClick={() => setVisible(true)} title="打开预览(⌘/Ctrl+Shift+M)">打开预览</button>
-      )}
+      {/* 始终显示，无需“打开预览”按钮 */}
     </div>
   )
 }

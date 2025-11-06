@@ -3,7 +3,7 @@ import { sanitizeHtml } from '../utils/markdown.ts'
 import ParserWorker from '../workers/parser.worker?worker'
 import { buildHierarchy, type HierNode } from '../utils/hierarchy.ts'
 import { copyHtmlToClipboard } from '../utils/copy.ts'
-import { IconCopy, IconEye, IconEyeOff, IconUpload, IconTrash, IconPalette } from '../icons'
+import { IconCopy, IconPalette } from '../icons'
 import { replaceEmojiShortcodes, EMOJI_LIST } from '../utils/emoji.ts'
 import { isPro } from '../utils/license'
 import { exportHtml, exportMarkdown } from '../utils/export'
@@ -40,8 +40,7 @@ export function PreviewPanel(props: Props) {
   const [aiQuestion, setAiQuestion] = useState<string>('')
   const [expandAll, setExpandAll] = useState<boolean>(true)
   const [expandKey, setExpandKey] = useState<number>(0)
-  const [importOpen, setImportOpen] = useState<boolean>(false)
-  const [importText, setImportText] = useState<string>('')
+  // 移除导入/清除覆盖功能
   const [appearanceOpen, setAppearanceOpen] = useState<boolean>(false)
   const [proOpen, setProOpen] = useState<boolean>(false)
   const workerRef = useRef<Worker | null>(null)
@@ -157,30 +156,9 @@ export function PreviewPanel(props: Props) {
       </div>
       <div class="dwbg-control-bar">
         <button class="dwbg-btn dwbg-btn--sm" title="复制格式化内容" onClick={onCopy}><IconCopy /> 复制</button>
-        <button class="dwbg-btn dwbg-btn--sm" title="显示/隐藏 (⌘/Ctrl+Shift+M)" onClick={onToggleVisible}>{visible ? (<><IconEyeOff /> 隐藏</>) : (<><IconEye /> 显示</>)}</button>
+        {/* 已移除显示/隐藏按钮 */}
         <button class="dwbg-btn dwbg-btn--sm" title="导出HTML (Pro)" onClick={() => { if (!isPro()) { setProOpen(true); return } exportHtml(html) }}>导出HTML</button>
-        <button
-          class="dwbg-btn dwbg-btn--sm"
-          title="导入测试 Markdown（本地覆盖）"
-          onClick={() => {
-            const existing = (localStorage.getItem('dwbg:mdOverride') || '')
-            setImportText(existing)
-            setImportOpen(true)
-          }}
-        >
-          <IconUpload /> 导入Markdown
-        </button>
-        <button
-          class="dwbg-btn dwbg-btn--sm"
-          title="清除本地覆盖"
-          onClick={() => {
-            localStorage.removeItem('dwbg:mdOverride')
-            ;(window as any).__mdOverride = ''
-            window.dispatchEvent(new Event('dwbg:refresh'))
-          }}
-        >
-          <IconTrash /> 清除覆盖
-        </button>
+        {/* 已移除导入Markdown与清除覆盖 */}
         <button class="dwbg-btn dwbg-btn--sm" title="主题与配色" onClick={() => setAppearanceOpen(true)}>
           <IconPalette /> 主题
         </button>
@@ -244,50 +222,7 @@ export function PreviewPanel(props: Props) {
           />
         )}
       </div>
-      {importOpen && (
-        <div class="dwbg-modal" role="dialog" aria-modal="true">
-          <div class="dwbg-modal__content">
-            <div class="dwbg-modal__header">导入测试 Markdown（本地覆盖）</div>
-            <div class="dwbg-modal__body">
-              <textarea
-                class="dwbg-textarea"
-                value={importText}
-                onInput={(e) => setImportText((e.target as HTMLTextAreaElement).value)}
-                placeholder="在此粘贴你的 Markdown 文本"
-              />
-              <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {EMOJI_LIST.map((e: { name: string; char: string }) => (
-                  <button
-                    key={e.name}
-                    class="dwbg-btn"
-                    title={`:${e.name}:`}
-                    onClick={() => {
-                      setImportText((t) => (t || '') + ' ' + e.char)
-                    }}
-                  >
-                    {e.char}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div class="dwbg-modal__footer">
-              <button class="dwbg-btn" onClick={() => setImportOpen(false)}>取消</button>
-              <button
-                class="dwbg-btn"
-                onClick={() => {
-                  localStorage.setItem('dwbg:mdOverride', importText || '')
-                  ;(window as any).__mdOverride = importText || ''
-                  setImportOpen(false)
-                  window.dispatchEvent(new Event('dwbg:refresh'))
-                }}
-              >
-                确定导入
-              </button>
-              <button class="dwbg-btn" title="导出MD (Pro)" onClick={() => { if (!isPro()) { setProOpen(true); return } exportMarkdown(importText || markdown) }}>导出MD</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 已移除导入Markdown弹窗 */}
     </aside>
   )
 }
