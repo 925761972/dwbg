@@ -4,9 +4,9 @@ import ParserWorker from '../workers/parser.worker?worker'
 import { buildHierarchy, type HierNode } from '../utils/hierarchy.ts'
 import { copyHtmlToClipboard } from '../utils/copy.ts'
 import { IconCopy, IconPalette } from '../icons'
-import { replaceEmojiShortcodes, EMOJI_LIST } from '../utils/emoji.ts'
+import { replaceEmojiShortcodes } from '../utils/emoji.ts'
 import { isPro } from '../utils/license'
-import { exportHtml, exportMarkdown } from '../utils/export'
+import { exportHtml } from '../utils/export'
 import { ProModal } from './ProModal'
 import { askAI } from '../utils/ai'
 import { RecordNavigator } from './RecordNavigator'
@@ -28,7 +28,7 @@ type Props = {
 type ParseResult = { html: string; tokens: any[]; parseTime: number }
 
 export function PreviewPanel(props: Props) {
-  const { visible, onToggleVisible, width, markdown, sourceMeta, lastUpdatedAt, error, theme = 'blue', onChangeTheme, onChangeCustomPrimary } = props
+  const { visible, width, markdown, sourceMeta, lastUpdatedAt, error, theme = 'blue', onChangeTheme, onChangeCustomPrimary } = props
   const [html, setHtml] = useState<string>('')
   const [hier, setHier] = useState<HierNode[]>([])
   const [parseTime, setParseTime] = useState<number>(0)
