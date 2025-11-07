@@ -170,6 +170,22 @@ export function PreviewPanel(props: Props) {
         <RecordNavigator />
         <FieldSelector />
         <span class="dwbg-control-spacer" />
+        <button
+          class="dwbg-btn dwbg-btn--sm"
+          title="粘贴Markdown"
+          onClick={() => {
+            const text = window.prompt('粘贴或输入 Markdown 内容：') || ''
+            if (text && text.trim().length > 0) {
+              try { localStorage.setItem('dwbg:mdOverride', text) } catch {}
+              window.dispatchEvent(new Event('dwbg:refresh'))
+            }
+          }}
+        >粘贴</button>
+        <button
+          class="dwbg-btn dwbg-btn--sm"
+          title="清除覆盖"
+          onClick={() => { try { localStorage.removeItem('dwbg:mdOverride') } catch {}; window.dispatchEvent(new Event('dwbg:refresh')) }}
+        >清除覆盖</button>
         <button class="dwbg-btn dwbg-btn--sm" title="诊断信息" onClick={() => setDebugOpen((o) => !o)}>{debugOpen ? '关闭诊断' : '诊断'}</button>
         {activeTab === 'structure' && (
           <>

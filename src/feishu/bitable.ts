@@ -12,8 +12,21 @@ declare global {
 
 function getBitable(): any | undefined {
   // 环境直接注入的 window.bitable（侧栏/插件环境）
-  if (typeof window !== 'undefined' && (window as any).bitable?.base) return (window as any).bitable
+  if (typeof window !== 'undefined' && (window as any).bitable) return (window as any).bitable
   return undefined
+}
+
+async function waitBitableReady(maxWaitMs = 3000): Promise<any | undefined> {
+  const start = Date.now()
+  // 轮询直到 window.bitable.base 可用或超时
+  while (Date.now() - start < maxWaitMs) {
+    const b = getBitable()
+    if (b?.base) return b
+    // 某些环境需要触发一次 bridge 调用以初始化
+    try { if (b?.bridge?.getEnv) await Promise.resolve(b.bridge.getEnv()) } catch {}
+    await new Promise((r) => setTimeout(r, 120))
+  }
+  return getBitable()
 }
 
 export function isBitableAvailable(): boolean {
@@ -23,14 +36,22 @@ export function isBitableAvailable(): boolean {
 
 export function subscribeSelectionChange(handler: () => void): () => void {
   const b = getBitable()
+  // 若已经就绪，直接订阅
   if (b?.base) {
-    // 兼容不同签名：忽略事件参数，仅触发刷新
     const off = b.base.onSelectionChange(() => handler())
     return () => off?.()
   }
-  // local dev: simulate no-op
-  const interval = window.setInterval(handler, 2000)
-  return () => clearInterval(interval)
+  // 未就绪：先轮询，待就绪后切换到原生订阅
+  let offFn: (() => void) | null = null
+  const interval = window.setInterval(async () => {
+    handler()
+    const ready = await waitBitableReady(0)
+    if (ready?.base && !offFn) {
+      offFn = ready.base.onSelectionChange(() => handler())
+      clearInterval(interval)
+    }
+  }, 500)
+  return () => { clearInterval(interval); offFn?.() }
 }
 
 function segToString(seg: any): string {
@@ -75,9 +96,17 @@ function extractMarkdownFromCell(val: any): string {
 }
 
 export async function getSelectedCellMarkdown(): Promise<{ md: string; meta: Selection }> {
-  const b = getBitable()
+  // 用户在文档侧栏无法读取表格时，可以通过本地覆盖粘贴 Markdown
+  try {
+    const override = (localStorage.getItem('dwbg:mdOverride') || (window as any).__mdOverride || '').trim()
+    if (override) {
+      return { md: override, meta: {} }
+    }
+  } catch {}
+  let b = getBitable()
+  if (!b?.base) b = await waitBitableReady()
   if (!b?.base) {
-    // local dev: return placeholder text to preview UI
+    // local dev / 未就绪超时：返回占位文本
     const idx = parseInt(localStorage.getItem('dwbg:recordIndex') || '0')
     const fieldId = localStorage.getItem('dwbg:fieldId') || 'content'
     const md = sampleMarkdown(idx, fieldId)
@@ -88,7 +117,7 @@ export async function getSelectedCellMarkdown(): Promise<{ md: string; meta: Sel
 
   const { tableId, recordId, fieldId: selectedFieldId } = selection as any
   const base = b.base
-  const table = await base.getTableById(tableId)
+  const table = tableId ? await base.getTableById(tableId) : await base.getActiveTable()
 
   // 改为：优先使用用户在 FieldSelector 选择的字段；若未设置，按候选字段名称匹配；最后兜底为第一个字段。
   // 优先级：1) 用户在 FieldSelector 指定的字段；2) 当前选中的字段；3) 候选名称；4) 第一个字段
@@ -122,7 +151,8 @@ export async function getSelectedCellMarkdown(): Promise<{ md: string; meta: Sel
 }
 
 export async function getFieldList(): Promise<Array<{ id: string; name: string }>> {
-  const b = getBitable()
+  let b = getBitable()
+  if (!b?.base) b = await waitBitableReady()
   if (!b?.base) {
     return [
       { id: 'content', name: '内容' },
@@ -136,7 +166,8 @@ export async function getFieldList(): Promise<Array<{ id: string; name: string }
 }
 
 export async function getRecordIds(): Promise<string[]> {
-  const b = getBitable()
+  let b = getBitable()
+  if (!b?.base) b = await waitBitableReady()
   if (!b?.base) {
     const count = parseInt(localStorage.getItem('dwbg:recordCount') || '5')
     return Array.from({ length: count }).map((_, i) => String(i))
@@ -148,7 +179,8 @@ export async function getRecordIds(): Promise<string[]> {
 }
 
 export async function selectRecordByIndex(index: number): Promise<void> {
-  const b = getBitable()
+  let b = getBitable()
+  if (!b?.base) b = await waitBitableReady()
   if (!b?.base) {
     localStorage.setItem('dwbg:recordIndex', String(index))
     window.dispatchEvent(new Event('dwbg:refresh'))
