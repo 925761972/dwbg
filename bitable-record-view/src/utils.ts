@@ -47,10 +47,42 @@ function getDescription(descriptionValue: IOpenSegment[] | null) {
   return descriptionValue.map((segment) => segment.text).join("");
 }
 
+/**
+ * 读取当前选区的表和记录；如果没有选中任何记录，回退到：
+ * 1) 当前 Base 的第一个表；
+ * 2) 该表的第一条记录。
+ * 这样能避免首次打开插件或未选中单元格时出现“选区状态读取失败”。
+ */
+async function ensureSelection(): Promise<{ tableId: string; recordId: string }> {
+  const sel = await bitable.base.getSelection();
+  if (sel?.tableId && sel?.recordId) {
+    return { tableId: sel.tableId, recordId: sel.recordId };
+  }
+
+  // 回退：获取第一个表
+  const tableMetaList = await bitable.base.getTableMetaList();
+  const tableId = sel?.tableId ?? (tableMetaList && tableMetaList[0]?.id);
+  if (!tableId) {
+    throw new Error("未找到任何数据表，请在当前 Base 新建数据表后重试");
+  }
+  const table = await bitable.base.getTableById(tableId);
+
+  // 回退：获取第一条记录
+  let recordId: string | undefined;
+  try {
+    const ids = await table.getRecordIdList();
+    recordId = ids && ids[0];
+  } catch (_) {}
+
+  if (!recordId) {
+    throw new Error("当前数据表暂无记录，请先新建一条记录后重试");
+  }
+  return { tableId, recordId };
+}
+
 export async function getCurrentTask() {
-  // 1. 读取选中的表和记录 //
-  const { tableId, recordId } = await bitable.base.getSelection();
-  if (!tableId || !recordId) throw new Error("选区状态读取失败");
+  // 1. 读取选中的表和记录（带回退）//
+  const { tableId, recordId } = await ensureSelection();
   const table = await bitable.base.getTableById(tableId);
 
   // 2. 查找字段 ID（按候选名称）并读取单元格 //
@@ -100,9 +132,8 @@ export async function getCurrentTask() {
 }
 
 export async function setCompleted(completed: boolean) {
-  // 1. 读取选中的表和记录 //
-  const { tableId, recordId } = await bitable.base.getSelection();
-  if (!tableId || !recordId) throw new Error("选区状态读取失败");
+  // 1. 读取选中的表和记录（带回退）//
+  const { tableId, recordId } = await ensureSelection();
   const table = await bitable.base.getTableById(tableId);
 
   // 2. 查找完成字段并写入 //

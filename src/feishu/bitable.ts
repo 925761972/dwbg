@@ -35,23 +35,21 @@ export function isBitableAvailable(): boolean {
 }
 
 export function subscribeSelectionChange(handler: () => void): () => void {
-  const b = getBitable()
-  // 若已经就绪，直接订阅
-  if (b?.base) {
-    const off = b.base.onSelectionChange(() => handler())
-    return () => off?.()
-  }
-  // 未就绪：先轮询，待就绪后切换到原生订阅
-  let offFn: (() => void) | null = null
-  const interval = window.setInterval(async () => {
-    handler()
-    const ready = await waitBitableReady(0)
-    if (ready?.base && !offFn) {
-      offFn = ready.base.onSelectionChange(() => handler())
-      clearInterval(interval)
+  // 仅使用原生事件订阅，符合“点击哪个就显示哪个”的预期
+  let off: (() => void) | null = null
+  const init = async () => {
+    const ready = await waitBitableReady()
+    if (ready?.base) {
+      off = ready.base.onSelectionChange(() => handler())
+      // 初次加载触发一次
+      handler()
+    } else {
+      // 未就绪：仍触发一次，显示“暂无选区”
+      handler()
     }
-  }, 500)
-  return () => { clearInterval(interval); offFn?.() }
+  }
+  init()
+  return () => off?.()
 }
 
 function segToString(seg: any): string {
@@ -106,40 +104,26 @@ export async function getSelectedCellMarkdown(): Promise<{ md: string; meta: Sel
   let b = getBitable()
   if (!b?.base) b = await waitBitableReady()
   if (!b?.base) {
-    // local dev / 未就绪超时：返回占位文本
-    const idx = parseInt(localStorage.getItem('dwbg:recordIndex') || '0')
-    const fieldId = localStorage.getItem('dwbg:fieldId') || 'content'
-    const md = sampleMarkdown(idx, fieldId)
-    return { md, meta: { recordId: String(idx), fieldId } }
+    // 未就绪：严格模式下返回空，提示用户在多维表格页面使用
+    return { md: '', meta: {} }
   }
   const selection = await b.base.getSelection()
-  if (!selection) return { md: '', meta: {} }
-
-  const { tableId, recordId, fieldId: selectedFieldId } = selection as any
+  if (!selection || !(selection as any).recordId || !(selection as any).fieldId) {
+    // 严格模式：没有选区或字段/记录缺失则不读取
+    return { md: '', meta: selection as any }
+  }
+  const { tableId, recordId, fieldId } = selection as any
   const base = b.base
   const table = tableId ? await base.getTableById(tableId) : await base.getActiveTable()
-
-  // 改为：优先使用用户在 FieldSelector 选择的字段；若未设置，按候选字段名称匹配；最后兜底为第一个字段。
-  // 优先级：1) 用户在 FieldSelector 指定的字段；2) 当前选中的字段；3) 候选名称；4) 第一个字段
-  let targetFieldId = localStorage.getItem('dwbg:fieldId') || ''
-  if (!targetFieldId) targetFieldId = selectedFieldId || ''
-  if (!targetFieldId) {
-    const metaList = await table.getFieldMetaList()
-    const nameCandidates = ['content', '内容', '任务描述', '描述', '备注', 'Markdown', 'markdown']
-    const found = metaList.find((f: any) => nameCandidates.includes((f?.name || '').trim()))
-    targetFieldId = found?.id || metaList?.[0]?.id || ''
-  }
-
-  if (!targetFieldId) return { md: '', meta: { tableId, recordId } }
-  const val = await table.getCellValue(targetFieldId, recordId)
+  const val = await table.getCellValue(fieldId, recordId)
   const md = extractMarkdownFromCell(val)
   // 记录调试信息，供侧栏诊断面板查看
   try {
     const metaList = await table.getFieldMetaList()
-    const fieldName = (metaList.find((f: any) => f.id === targetFieldId)?.name) || ''
+    const fieldName = (metaList.find((f: any) => f.id === fieldId)?.name) || ''
     const debug = {
-      selectedFieldId,
-      targetFieldId,
+      selectedFieldId: (selection as any)?.fieldId,
+      targetFieldId: fieldId,
       fieldName,
       valueType: Array.isArray(val) ? 'array' : typeof val,
       sample: Array.isArray(val) ? (val?.slice?.(0, 3) || []) : (typeof val === 'object' ? Object.keys(val).slice(0, 8) : String(val).slice(0, 120)),
@@ -147,7 +131,7 @@ export async function getSelectedCellMarkdown(): Promise<{ md: string; meta: Sel
     }
     localStorage.setItem('dwbg:lastDebug', JSON.stringify(debug))
   } catch {}
-  return { md, meta: { tableId, recordId, fieldId: targetFieldId } }
+  return { md, meta: { tableId, recordId, fieldId } }
 }
 
 export async function getFieldList(): Promise<Array<{ id: string; name: string }>> {
@@ -211,11 +195,4 @@ export async function setFieldId(fieldId: string): Promise<void> {
   // 仅持久化选择的字段，不改变表格当前选区，避免打断用户操作
   localStorage.setItem('dwbg:fieldId', fieldId)
   window.dispatchEvent(new Event('dwbg:refresh'))
-}
-
-function sampleMarkdown(idx: number, fieldId: string): string {
-  if (fieldId === 'notes') {
-    return `### 记录 ${idx} 备注\n\n- 这是备注内容示例\n- 条目 ${idx}`
-  }
-  return `# 记录 ${idx}\n\n- 列表项 A\n- 列表项 B\n\n| 字段 | 值 |\n| --- | --- |\n| id | ${idx} |`
 }
