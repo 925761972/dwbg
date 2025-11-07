@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dwbg</title>
+    <script>
+      (function(){
+        try {
+          // 标记已注入，避免重复订阅
+          window.__dwbgInit = true;
+          console.log('[dwbg] window.bitable =', window.bitable);
+          var bitable = window.bitable;
+          if (!bitable || !bitable.base) {
+            // 本地开发无 bitable，直接返回
+            return;
+          }
+          var emitSelection = async function () {
+            try {
+              var sel = await bitable.base.getSelection();
+              window.postMessage({ source: 'dwbg', type: 'selection', selection: sel }, '*');
+            } catch (e) {
+              console.warn('[dwbg] getSelection failed', e);
+            }
+          };
+          // 初次 emit
+          emitSelection();
+          // 订阅选区变化
+          try {
+            bitable.base.onSelectionChange(function(){ emitSelection(); });
+          } catch (e) {
+            console.warn('[dwbg] onSelectionChange unavailable', e);
+          }
+        } catch (e) {
+          console.warn('[dwbg] init script error', e);
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="./assets/index-CB0iDCJg.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-92wXH4yw.css">
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>
